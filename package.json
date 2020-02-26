@@ -7,6 +7,10 @@
     "banking",
     "bank"
   ],
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/timaschew/comdirect"
+  },
   "main": "main.js",
   "author": "Anton Wilhelm",
   "license": "ISC",
