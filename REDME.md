@@ -42,7 +42,7 @@ Either clone this repository and run `npm install` or install it with `npm insta
 ```sh
 export CLIENT_ID=User_A1234B567D901012E0XXXXXXXXXXXXXX
 export CLIENT_SECRET=ABDBASDBASB12361741623ABACBD
-export PERSISTENCE=1 # optionally save refresh token, etc. to file
+export PERSISTENCE=1 # optionally save refresh token, etc. to file, otherwise everything is only in the memory
 export CREDENTIALS_FILE_PATH='.credentials' # defaults to '$PWD/.credentials', only usefull when PERSISTENCE=1
 export DEBUG=1 # print all HTTP requests (url, status code, body)
 ```
@@ -55,18 +55,21 @@ highLevel = require('comdirect/high-level')
 lowLevel = require('comdirect/low-level')
 ```
 
-##### `comdirect(config = {autoRefresh: false, port: 8090})`
+##### `comdirect(config = {autoRefresh: false, webhook: false, port: 8090})`
 Function with an optional config object.  
-`autoRefresh`: update the refresh token every 15 minutes.  
-The port is required to open a URL for the TAN challenge in the browser.  
+
+`autoRefresh`: update the refresh token every 15 minutes  
+`webhook`:  if true the authorization starts when you open the URL and do login via a browser. 
+`port`: is required to open a URL for the TAN challenge in the browser and the webhook method.  
+
 Returns a promise with the this object:
 ```json
 {
-  "sessionId": "AAA",
-  "requestId": "BBB",
-  "access_token": "CCC",
-  "refresh_token": "DDD",
-  "sessionUUID": "EEE",
+  "access_token": "AAA",
+  "refresh_token": "BBB",
+  "sessionUUID": "CCC",
+  "sessionId": "DDD",
+  "requestId": "EEE",
   "accountId": "FFF"
 }
 ```
@@ -76,17 +79,81 @@ Returns a promise with the this object:
 Please check the source code.
 
 
-### Example
+### Example (interactive CLI)
+
+Example with interactive CLI. Follow instructions in the output
 
 ```js
 const comdirect = require('comdirect')
-const {getTransactions} = require('comdirect/low-level')
+const {
+	getTransactions, 
+	getAccountInfo
+} = require('comdirect/low-level')
 
-comdirect().then(data => {
-	console.log(data)
-	return getTransactions(data.access_token, data.accountId, data.sessionId, data.requestId)
-}).then(payload => {
-	const latest = payload.values[0]
-	console.log(latest)
-.catch(console.error)
+const {load} = require('comdirect/high-level')
+
+;(async function() {
+	const result = await server({autoRefresh: true, webhook: false})
+	const {
+		access_token,
+		accountId,
+		sessionId,
+		requestId
+	} = result
+	const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
+	console.log(transactions.values[0]) // show latest transaction
+	
+	// wait 11 minutes (access token is expired at this time)
+	setTimeout(async function() {
+		const {
+			access_token,
+			accountId,
+			sessionId,
+			requestId
+		} = load() // load always a fresh token
+		const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
+		console.log(transactions.values[0]) // show latest transaction
+	}, 1000 * 60 * 1) 
+})()
+```
+
+### Example (non interactive CLI)
+
+Example without interactive CLI.  Follow instructions in the output.  
+Usefull when deployment (and server start) is automated.  
+The login is done via an URL and a form which is displayed in the sever output.
+
+
+```js
+const comdirect = require('comdirect')
+const {
+	getTransactions, 
+	getAccountInfo
+} = require('comdirect/low-level')
+
+const {load} = require('comdirect/high-level')
+
+;(async function() {
+	const result = await server({autoRefresh: true, webhook: false})
+	const {
+		access_token,
+		accountId,
+		sessionId,
+		requestId
+	} = result
+	const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
+	console.log(transactions.values[0]) // show latest transaction
+	
+	// wait 11 minutes (access token is expired at this time)
+	setTimeout(async function() {
+		const {
+			access_token,
+			accountId,
+			sessionId,
+			requestId
+		} = load() // load always a fresh token
+		const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
+		console.log(transactions.values[0]) // show latest transaction
+	}, 1000 * 60 * 1) 
+})()
 ```

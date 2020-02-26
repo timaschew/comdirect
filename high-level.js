@@ -9,7 +9,8 @@ const {
 	activateSesssionTAN,
 	oAuthSecondaryFlow,
 	refreshTokenFlow,
-	getAccountInfo
+	getAccountInfo,
+	_setStorageHandler
 } = require('./low-level')
 
 const utils = require('./utils')
@@ -18,9 +19,19 @@ let memory = {}
 const persistence = process.env.PERSISTENCE
 const DEBUG = process.env.DEBUG || false
 
+if (persistence) {
+	console.log('using', CREDENTIALS_FILE_PATH)
+}
+
 function load() {
 	if (persistence) {
-		return JSON.parse(fs.readFileSync(CREDENTIALS_FILE_PATH, 'utf8'))
+		try {
+			return JSON.parse(fs.readFileSync(CREDENTIALS_FILE_PATH, 'utf8'))
+		} catch (error) {
+			console.log('creating empty file:', CREDENTIALS_FILE_PATH)
+			fs.writeFileSync(CREDENTIALS_FILE_PATH, '{}', 'utf8')
+			return {}
+		}
 	}
 	return memory
 }
@@ -34,9 +45,13 @@ function save(object) {
 		memory = patched
 	}
 }
+_setStorageHandler({load: load, save: save})
 
-async function loadUserData(reference, challengeUrl) {
-	const data = await getValidCredentials(reference, challengeUrl)
+async function loadUserData(reference, challengeUrl, username, password, tan) {
+	const data = await getValidCredentials(reference, challengeUrl, username, password, tan)
+	if (data == null) {
+		return null // for webhook
+	}
 	if (data.accountId == null) {
 		const accountId = await getAccountInfo(data.access_token, data.requestId, data.requestId)
 		save({accountId})
@@ -45,7 +60,7 @@ async function loadUserData(reference, challengeUrl) {
 	return data
 }
 
-async function getValidCredentials(reference, challengeUrl) {
+async function getValidCredentials(reference, challengeUrl, username, password, tan) {
 	const data = load()
 	try {
 		const accountId = await getAccountInfo(data.access_token, data.sessionId, data.requestId)
@@ -58,21 +73,24 @@ async function getValidCredentials(reference, challengeUrl) {
 	}
 	try {
 		if (data.refresh_token != null) {
-			const response = await refreshTokenFlow(data.refresh_token)
+			const response = await refreshTokenFlow()
 			save({access_token: response.access_token, refresh_token: response.refresh_token})
 			return load()
 		}
 	} catch (error) {
 		// ignore
 	}
-	return await runOAuthFlow(reference, challengeUrl)
+	// if both above are expired, do full flow:
+	return await runOAuthFlow(reference, challengeUrl, username, password, tan)
 }
 
-async function runOAuthFlow(reference, challengeUrl) {
-	// if both above are expired, do full flow:
-	const username = await utils.getInput('Zugangsnummer/Username: ')
-	const pin = await utils.getInput('PIN/Password: ', true)
-	const oAuthResponse = await oAuthInit(username, pin)
+async function runOAuthFlow(reference, challengeUrl, username, password, tan) {
+	if (username == null || password == null || tan == null) {
+		return null // for webhook
+	}
+	const _username = await username()
+	const _password = await password()
+	const oAuthResponse = await oAuthInit(_username, _password)
 	save({access_token: oAuthResponse.access_token, refresh_token: oAuthResponse.refresh_token})
 	const sessionId =  utils.guid()
 	const requestId = utils.requestId()
@@ -85,13 +103,13 @@ async function runOAuthFlow(reference, challengeUrl) {
 		if (header.id != null && header.typ == 'P_TAN' && header.challenge != null) {
 			reference.challenge = header.challenge
 			console.log(`Please solve the photoTAN with your browser: ${challengeUrl}`)
-			const tan = await utils.getInput('TAN: ')
-			const activatedSession = await activateSesssionTAN(tan, header.id, sessionStatus[0].identifier, oAuthResponse.access_token, sessionId, requestId)
+			const _tan = await tan()
+			const activatedSession = await activateSesssionTAN(_tan, header.id, sessionStatus[0].identifier, oAuthResponse.access_token, sessionId, requestId)
 			save({sessionUUID: activatedSession.identifier}) // TOOD: is this really needed? identifier is not changing usually
 			if (activatedSession.sessionTanActive === true) {
 				const finalRespone = await oAuthSecondaryFlow(oAuthResponse.access_token)
 				save({access_token: finalRespone.access_token, refresh_token: finalRespone.refresh_token})
-				return load()
+				return Object.assign({}, load(), {kdnr: finalRespone.kdnr} )
 			} else {
 				throw new Error('photoTAN was not successful')
 			}

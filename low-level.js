@@ -1,14 +1,14 @@
 const fs = require('fs')
 const path = require('path')
+const got = require('got')
 
 const API_BASE = 'https://api.comdirect.de/'
 
 const CLIENT_ID = process.env.CLIENT_ID
 const CLIENT_SECRET = process.env.CLIENT_SECRET
-
 const DEBUG = process.env.DEBUG || false
 
-const got = require('got')
+let storageHandler = null
 const agent = got.extend({
 	prefixUrl: API_BASE,
 	hooks: {
@@ -17,12 +17,33 @@ const agent = got.extend({
 				if (DEBUG) {
 					console.log(response.url, response.statusCode, response.body)
 				}
-				// No changes otherwise
+				if (response.body) {
+					if (response.body.access_token && response.body.refresh_token) {
+						storageHandler.save({access_token: response.body.access_token, refresh_token: response.body.refresh_token})
+					} else if (response.body.refresh_token) {
+						storageHandler.save({refresh_token: response.body.refresh_token})
+					} else if (response.body.access_token) {
+						storageHandler.save({access_token: response.body.access_token})
+					}
+				}
 				return response
 			}
-		]
+		],
+        beforeError: [
+            error => {
+                const {response} = error
+ 				if (response && response.body) {
+ 					error.body = response.body
+                }
+ 				return error
+            }
+        ]
 	}
 })
+
+function _setStorageHandler(_storageHandler) {
+	storageHandler = _storageHandler
+}
 
 async function oAuthInit(username, password) {
 	const options = {
@@ -142,7 +163,8 @@ async function oAuthSecondaryFlow(access_token) {
 	return response.body
 }
 
-async function refreshTokenFlow(refreshToken) {
+async function refreshTokenFlow() {
+	const {refresh_token} = storageHandler.load()
 	const options = {
 	  responseType: 'json',
 	  method: 'POST',
@@ -155,7 +177,7 @@ async function refreshTokenFlow(refreshToken) {
 	    'client_id': CLIENT_ID,
 	    'client_secret': CLIENT_SECRET,
 	    'grant_type': 'refresh_token',
-	    'refresh_token': refreshToken
+	    'refresh_token': refresh_token
 	  }
 	}
 	const response = await agent(options)
@@ -218,5 +240,6 @@ module.exports = {
 	refreshTokenFlow,
 	getAccountBalances,
 	getAccountInfo,
-	getTransactions
+	getTransactions,
+	_setStorageHandler
 }
