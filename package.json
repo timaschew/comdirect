@@ -1,6 +1,6 @@
 {
   "name": "comdirect",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Un-official node.js module for the comdirect REST API",
   "tags": [
     "comdirect",
