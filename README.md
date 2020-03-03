@@ -30,7 +30,28 @@ This module helps you to make it easys as possible by:
   - if access token is expired but refresh token is valid a new access token is created
 - load the account id automatically in order to allow you to fetch account transactions
 - auto refresh (update the refresh token automatically every 15 minutes)
+- automatically save new access and refresh token and automatically inject them
+- mask sensitive output in the optional logs (client secret, pin/password, acces token, refresh token)
+- reformat `remittanceInfo` in the transactions (remove `01`, `02`, etc. and split into an array of chunks)
 - persist data (refresh token, account id, etc.) optionally to run your script again without doing the TAN challenge after it has terminated
+
+**Reformated remittanceInfo:**
+
+Original:
+
+```
+"remittanceInfo": "01Auszahlung                         \n02Commerzbank 00102434/Eisenbahnstraß\n032019-09-23T12:56:40 KFN 1  VJ 1315 ",
+```
+
+Reformated:
+
+```
+remittanceInfo: [
+  'Auszahlung                         ',
+  'Commerzbank 00102434/Eisenbahnstraß',
+  '2020-03-02T11:26:15 KFN 1  VJ 1315 '
+],
+```
 
 ## Usage
 
@@ -59,7 +80,7 @@ lowLevel = require('comdirect/low-level')
 Function with an optional config object.  
 
 `autoRefresh`: update the refresh token every 15 minutes  
-`webhook`:  if true the authorization starts when you open the URL and do login via a browser. 
+`webhook`:  if true the authorization starts when you open the URL and do login via a browser.  
 `port`: is required to open a URL for the TAN challenge in the browser and the webhook method.  
 
 Returns a promise with the this object:
@@ -81,79 +102,33 @@ Please check the source code.
 
 ### Example (interactive CLI)
 
-Example with interactive CLI. Follow instructions in the output
+Example with interactive CLI. Follow instructions in the output.  
+To scan the TAN challenge you need to use a browser.
 
 ```js
 const comdirect = require('comdirect')
-const {
-	getTransactions, 
-	getAccountInfo
-} = require('comdirect/low-level')
-
-const {load} = require('comdirect/high-level')
+const {getTransactions} = require('comdirect/low-level')
+const {refreshTokenFlowIfNeeded} = require('comdirect/high-level')
 
 ;(async function() {
 	const result = await server({autoRefresh: true, webhook: false})
-	const {
-		access_token,
-		accountId,
-		sessionId,
-		requestId
-	} = result
-	const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
+	const {accountId} = result
+	let transactions = await getTransactions(accountId)
 	console.log(transactions.values[0]) // show latest transaction
-	
-	// wait 11 minutes (access token is expired at this time)
-	setTimeout(async function() {
-		const {
-			access_token,
-			accountId,
-			sessionId,
-			requestId
-		} = load() // load always a fresh token
-		const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
-		console.log(transactions.values[0]) // show latest transaction
-	}, 1000 * 60 * 1) 
+
+	// wait 30 minutes
+	await new Promise((resolve, reject) => setTimeout(resolve, 1000 * 60 * 30))
+	// ensure a valid access token
+	await refreshTokenFlowIfNeeded()
+	transactions = await getTransactions(accountId)
+	console.log(transactions.values[0]) // show latest transaction
 })()
 ```
 
-### Example (non interactive CLI)
+### Example (webhook)
 
-Example without interactive CLI.  Follow instructions in the output.  
-Usefull when deployment (and server start) is automated.  
-The login is done via an URL and a form which is displayed in the sever output.
+Same as above, but just pass `webhook: true` instead.  
 
+This is esefull when your deployment (and server start) is automated.  
+The login and TAN challenge is done via any browser.
 
-```js
-const comdirect = require('comdirect')
-const {
-	getTransactions, 
-	getAccountInfo
-} = require('comdirect/low-level')
-
-const {load} = require('comdirect/high-level')
-
-;(async function() {
-	const result = await server({autoRefresh: true, webhook: false})
-	const {
-		access_token,
-		accountId,
-		sessionId,
-		requestId
-	} = result
-	const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
-	console.log(transactions.values[0]) // show latest transaction
-	
-	// wait 11 minutes (access token is expired at this time)
-	setTimeout(async function() {
-		const {
-			access_token,
-			accountId,
-			sessionId,
-			requestId
-		} = load() // load always a fresh token
-		const transactions = await getTransactions(access_token, accountId, sessionId, requestId)
-		console.log(transactions.values[0]) // show latest transaction
-	}, 1000 * 60 * 1) 
-})()
-```

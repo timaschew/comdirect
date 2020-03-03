@@ -53,34 +53,51 @@ async function loadUserData(reference, challengeUrl, username, password, tan) {
 		return null // for webhook
 	}
 	if (data.accountId == null) {
-		const accountId = await getAccountInfo(data.access_token, data.requestId, data.requestId)
+		const accountId = await getAccountInfo()
 		save({accountId})
 		return load()
 	}
 	return data
 }
 
+async function refreshTokenFlowIfNeeded() {
+	try {
+		await getAccountInfo()
+		return {status: 'still valid'}
+	} catch (error) {
+		// ignore
+	}
+	try {
+		await refreshTokenFlow()
+		return {status: 'updated'}
+	} catch (error) {
+		throw error
+	}
+}
+
 async function getValidCredentials(reference, challengeUrl, username, password, tan) {
 	const data = load()
 	try {
-		const accountId = await getAccountInfo(data.access_token, data.sessionId, data.requestId)
+		// try access token
+		const accountId = await getAccountInfo()
 		if (accountId != null) {
+			// everything is loaded and still valid
 			save({accountId})
 			return load()
 		}
 	} catch (error) {
-		// ignore
+		// ignore (access token has expired)
 	}
 	try {
 		if (data.refresh_token != null) {
 			const response = await refreshTokenFlow()
-			save({access_token: response.access_token, refresh_token: response.refresh_token})
 			return load()
 		}
+		// first run, continue with runOAuthFlow()
 	} catch (error) {
-		// ignore
+		// ignore (refresh token has expired)
 	}
-	// if both above are expired, do full flow:
+	// initial/very first run will do this
 	return await runOAuthFlow(reference, challengeUrl, username, password, tan)
 }
 
@@ -91,12 +108,12 @@ async function runOAuthFlow(reference, challengeUrl, username, password, tan) {
 	const _username = await username()
 	const _password = await password()
 	const oAuthResponse = await oAuthInit(_username, _password)
-	save({access_token: oAuthResponse.access_token, refresh_token: oAuthResponse.refresh_token})
 	const sessionId =  utils.guid()
 	const requestId = utils.requestId()
-	const sessionStatus = await getSessionStatus(oAuthResponse.access_token, sessionId, requestId) 
-	save({sessionUUID: sessionStatus[0].identifier, sessionId, requestId})
-	const validationResponse = await validateSesssionTAN(sessionStatus[0].identifier, oAuthResponse.access_token, sessionId, requestId)
+	save({sessionId, requestId})
+	const sessionStatus = await getSessionStatus() 
+	const sessionUUID = sessionStatus[0].identifier
+	const validationResponse = await validateSesssionTAN(sessionUUID)
 	if (validationResponse.headers['x-once-authentication-info'] != null) {
 		const header = JSON.parse(validationResponse.headers['x-once-authentication-info'])
 		if (DEBUG) console.log('x-once-authentication-info', header)
@@ -104,11 +121,9 @@ async function runOAuthFlow(reference, challengeUrl, username, password, tan) {
 			reference.challenge = header.challenge
 			console.log(`Please solve the photoTAN with your browser: ${challengeUrl}`)
 			const _tan = await tan()
-			const activatedSession = await activateSesssionTAN(_tan, header.id, sessionStatus[0].identifier, oAuthResponse.access_token, sessionId, requestId)
-			save({sessionUUID: activatedSession.identifier}) // TOOD: is this really needed? identifier is not changing usually
+			const activatedSession = await activateSesssionTAN(_tan, header.id, sessionStatus[0].identifier)
 			if (activatedSession.sessionTanActive === true) {
-				const finalRespone = await oAuthSecondaryFlow(oAuthResponse.access_token)
-				save({access_token: finalRespone.access_token, refresh_token: finalRespone.refresh_token})
+				const finalRespone = await oAuthSecondaryFlow()
 				return Object.assign({}, load(), {kdnr: finalRespone.kdnr} )
 			} else {
 				throw new Error('photoTAN was not successful')
@@ -121,7 +136,7 @@ async function runOAuthFlow(reference, challengeUrl, username, password, tan) {
 module.exports = {
 	loadUserData,
 	getValidCredentials,
-	refreshTokenFlow,
+	refreshTokenFlowIfNeeded,
 	load,
 	save
 }

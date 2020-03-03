@@ -4,12 +4,12 @@ const http = require('http')
 
 const {
 	loadUserData,
-	refreshTokenFlow
+	refreshTokenFlowIfNeeded
 } = require('./high-level')
 
 const utils = require('./utils')
 
-const MINUTES_15 = 1000 * 60 * 15
+const MINUTES_19 = 1000 * 60 * 19
 const DEFAULT_PORT = 8089
 
 module.exports = function(config = {autoRefresh: false, webhook: false, port: DEFAULT_PORT}) {
@@ -91,7 +91,7 @@ module.exports = function(config = {autoRefresh: false, webhook: false, port: DE
 						return Promise.resolve(username)
 					}, function() {
 						res.writeHead(200, {'Content-Type': 'text/html'})
-						res.end('') // this will redirec the user to the challenge URL
+						res.end('') // this will redirect the user to the challenge URL
 						return Promise.resolve(password)
 					}, function() {
 						return new Promise((resolve, reject) => {
@@ -101,7 +101,7 @@ module.exports = function(config = {autoRefresh: false, webhook: false, port: DE
 					.then(data => {
 						console.log('authentication was successful')
 						if (config.autoRefresh) {
-							setInterval(triggerTokenRefresh, MINUTES_15)
+							setInterval(triggerTokenRefresh, MINUTES_19)
 						}
 						mainResolve(data)
 					})
@@ -130,7 +130,7 @@ module.exports = function(config = {autoRefresh: false, webhook: false, port: DE
 				return utils.getInput('TAN: ')
 			})
 			if (config.autoRefresh) {
-				setInterval(triggerTokenRefresh, MINUTES_15)
+				setInterval(triggerTokenRefresh, MINUTES_19)
 			}
 			return mainResolve(result)
 		} else {
@@ -139,7 +139,7 @@ module.exports = function(config = {autoRefresh: false, webhook: false, port: DE
 				console.log(`waiting for webhook, login via on: ${baseUrl}`)
 			} else {
 				if (config.autoRefresh) {
-					setInterval(triggerTokenRefresh, MINUTES_15)
+					setInterval(triggerTokenRefresh, MINUTES_19)
 				}
 				return mainResolve(result)
 			}
@@ -148,8 +148,10 @@ module.exports = function(config = {autoRefresh: false, webhook: false, port: DE
 }
 
 function triggerTokenRefresh() {
-	console.log('updating refresh token')
-	refreshTokenFlow().then(console.log).catch(error => {
+	refreshTokenFlowIfNeeded()
+	.then(status => {
+		console.log('token', status)
+	}).catch(error => {
 		console.error(error)
 		console.log('Stopping server and application')
 		process.exit(1)

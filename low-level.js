@@ -1,28 +1,50 @@
 const fs = require('fs')
 const path = require('path')
 const got = require('got')
+const {formatInfo, printProtected} = require('./utils')
 
 const API_BASE = 'https://api.comdirect.de/'
 
 const CLIENT_ID = process.env.CLIENT_ID
 const CLIENT_SECRET = process.env.CLIENT_SECRET
-const DEBUG = process.env.DEBUG || false
 
 let storageHandler = null
 const agent = got.extend({
 	prefixUrl: API_BASE,
 	hooks: {
+		beforeRequest: [
+            options => {
+       			const {access_token, sessionId, requestId} = storageHandler.load()
+            	if (options.headers['x-http-request-info'] != null) {
+	 				options.headers['x-http-request-info'] = JSON.stringify({
+			    		clientRequestId: {
+			    			sessionId: sessionId,
+			    			requestId: requestId
+			    		}
+
+            		})
+           		}
+           		if (options.headers.authorization != null) {
+           			options.headers.authorization = `Bearer ${access_token}`
+           		}
+           		if (options.form && options.form.token) {
+           			options.form.token = access_token
+           		}
+           		if (process.env.DEBUG || false) {
+					console.log('headers', printProtected(options.headers), 'body/form', printProtected(options.body) || printProtected(options.form))
+				}
+           	}
+        ],
 		afterResponse: [
 			(response, rertry) => {
-				if (DEBUG) {
-					console.log(response.url, response.statusCode, response.body)
+				if (process.env.DEBUG || false) {
+					console.log(response.url, response.statusCode, printProtected(response.body))
 				}
 				if (response.body) {
-					if (response.body.access_token && response.body.refresh_token) {
-						storageHandler.save({access_token: response.body.access_token, refresh_token: response.body.refresh_token})
-					} else if (response.body.refresh_token) {
+					if (response.body.refresh_token) {
 						storageHandler.save({refresh_token: response.body.refresh_token})
-					} else if (response.body.access_token) {
+					}
+					if (response.body.access_token) {
 						storageHandler.save({access_token: response.body.access_token})
 					}
 				}
@@ -66,20 +88,15 @@ async function oAuthInit(username, password) {
 	return response.body
 }
 
-async function getSessionStatus(access_token, sessionId, requestId) {
+async function getSessionStatus() {
 	const options = {
 		responseType: 'json',
 	    'method': 'GET',
 	    'url': 'api/session/clients/user/v1/sessions',
 	    'headers': {
 	        'Accept': 'application/json',
-	        'Authorization': `Bearer ${access_token}`,
-	        'x-http-request-info': JSON.stringify({
-		    	clientRequestId: {
-		    		sessionId: sessionId,
-		    		requestId: requestId
-		    	}
-		    }),
+	        'Authorization': 'AUTO-INJECT',
+	        'x-http-request-info': 'AUTO-INJECTED',
 	        'Content-Type': 'application/json'
 	    }
 	}
@@ -87,20 +104,15 @@ async function getSessionStatus(access_token, sessionId, requestId) {
 	return response.body
 }
 
-async function validateSesssionTAN(sessionUUID, access_token, sessionId, requestId) {
+async function validateSesssionTAN(sessionUUID) {
 	const options = {
 	    responseType: 'json',
 	    'method': 'POST',
 	    'url': `api/session/clients/user/v1/sessions/${sessionUUID}/validate`,
 	    'headers': {
 	        'Accept': 'application/json',
-	        'Authorization': `Bearer ${access_token}`,
-	        'x-http-request-info': JSON.stringify({
-		    	clientRequestId: {
-		    		sessionId: sessionId,
-		    		requestId: requestId
-		    	}
-		    }),
+	        'Authorization': 'AUTO-INJECT',
+	        'x-http-request-info': 'AUTO-INJECTED',
 	        'Content-Type': 'application/json'
 	    },
 	  	body: JSON.stringify({
@@ -113,20 +125,15 @@ async function validateSesssionTAN(sessionUUID, access_token, sessionId, request
 	return response
 }
 
-async function activateSesssionTAN(tan, challengeId, sessionUUID, access_token, sessionId, requestId) {
+async function activateSesssionTAN(tan, challengeId, sessionUUID) {
 	const options = {
 		responseType: 'json',
 	    'method': 'PATCH',
 	    'url': `api/session/clients/user/v1/sessions/${sessionUUID}`,
 	    'headers': {
 	        'Accept': 'application/json',
-	        'Authorization': `Bearer ${access_token}`,
-	        'x-http-request-info': JSON.stringify({
-		    	clientRequestId: {
-		    		sessionId: sessionId,
-		    		requestId: requestId
-		    	}
-		    }),
+	        'Authorization': 'AUTO-INJECT',
+	        'x-http-request-info': 'AUTO-INJECTED',
 	        'Content-Type': 'application/json',
 	        'x-once-authentication-info': JSON.stringify({
 	        	id: challengeId
@@ -143,7 +150,7 @@ async function activateSesssionTAN(tan, challengeId, sessionUUID, access_token, 
 	return response.body
 }
 
-async function oAuthSecondaryFlow(access_token) {
+async function oAuthSecondaryFlow() {
 	const options = {
 		responseType: 'json',
 	    'method': 'POST',
@@ -156,7 +163,7 @@ async function oAuthSecondaryFlow(access_token) {
 	        'client_id': CLIENT_ID,
 	        'client_secret': CLIENT_SECRET,
 	        'grant_type': 'cd_secondary',
-	        'token': access_token
+	        'token': 'AUTO-INJECT'
 	    }
 	}
 	const response = await agent(options)
@@ -184,20 +191,15 @@ async function refreshTokenFlow() {
 	return response.body
 }
 
-async function getAccountBalances(access_token, sessionId, requestId) {
+async function getAccountBalances() {
 	const options = {
 	  responseType: 'json',
 	  method: 'GET',
 	  url: 'api/banking/clients/user/v1/accounts/balances',
 	  headers: {
 	    'Accept': 'application/json',
-	    'Authorization': `Bearer ${access_token}`,
-	    'x-http-request-info': JSON.stringify({
-	    	clientRequestId: {
-	    		sessionId: sessionId,
-	    		requestId: requestId
-	    	}
-	    }),
+	    'Authorization': 'AUTO-INJECT',
+	    'x-http-request-info': 'AUTO-INJECTED',
 	    'Content-Type': 'application/json'
 	  }
 	}
@@ -205,30 +207,34 @@ async function getAccountBalances(access_token, sessionId, requestId) {
 	return response.body
 }
 
-async function getAccountInfo(access_token, sessionId, requestId) {
-	const body = await getAccountBalances(access_token, sessionId, requestId)
+async function getAccountInfo(access_token) {
+	const body = await getAccountBalances(access_token)
 	return body.values[0].accountId
 }
 
-async function getTransactions(access_token, accountId, sessionId, requestId) {
+async function getTransactions(accountId) {
 	const options = {
 	  responseType: 'json',
 	  method: 'GET',
 	  url: `api/banking/v1/accounts/${accountId}/transactions`,
 	  headers: {
 	    'Accept': 'application/json',
-	    'Authorization': `Bearer ${access_token}`,
-		'x-http-request-info': JSON.stringify({
-	    	clientRequestId: {
-	    		sessionId: sessionId,
-	    		requestId: requestId
-	    	}
-	    }),
+	    'Authorization': 'AUTO-INJECT',
+		'x-http-request-info': 'AUTO-INJECTED',
 	    'Content-Type': 'application/json'
 	  }
 	}
 	const response = await agent(options)
-  	return response.body
+  	const values = response.body.values.map(v => {
+  		return {
+  			...v,
+  			remittanceInfo: formatInfo(v.remittanceInfo)
+  		}
+  	})
+  	return {
+  		...response.body,
+  		values: values
+  	}
 }
 
 module.exports = {
