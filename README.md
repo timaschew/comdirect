@@ -29,8 +29,8 @@ This module helps you to make it easys as possible by:
   - if there is no valid refresh token you need to open a browser and do the TAN challenge (scan picture and and enter a TAN)
   - if access token is expired but refresh token is valid a new access token is created
 - load the account id automatically in order to allow you to fetch account transactions
-- auto refresh (update the refresh token automatically every 15 minutes)
-- automatically save new access and refresh token and automatically inject them
+- auto refresh (update the refresh token automatically every 19 minutes, before it will expire)
+- automatically save new access token, refresh token, request id and session id and automatically inject them
 - mask sensitive output in the optional logs (client secret, pin/password, acces token, refresh token)
 - reformat `remittanceInfo` in the transactions (remove `01`, `02`, etc. and split into an array of chunks)
 - persist data (refresh token, account id, etc.) optionally to run your script again without doing the TAN challenge after it has terminated
@@ -79,7 +79,7 @@ lowLevel = require('comdirect/low-level')
 ##### `comdirect(config = {autoRefresh: false, webhook: false, port: 8090})`
 Function with an optional config object.  
 
-`autoRefresh`: update the refresh token every 15 minutes  
+`autoRefresh`: update the refresh token every 19 minutes  
 `webhook`:  if true the authorization starts when you open the URL and do login via a browser.  
 `port`: is required to open a URL for the TAN challenge in the browser and the webhook method.  
 
@@ -95,9 +95,9 @@ Returns a promise with the this object:
 }
 ```
 
-**WIP**
+##### Other APIs
 
-Please check the source code.
+Coming soon. Please check the source code.
 
 
 ### Example (interactive CLI)

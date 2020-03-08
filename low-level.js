@@ -3,7 +3,7 @@ const path = require('path')
 const got = require('got')
 const {formatInfo, printProtected} = require('./utils')
 
-const API_BASE = 'https://api.comdirect.de/'
+const API_BASE = 'https://api.comdirect.de'
 
 const CLIENT_ID = process.env.CLIENT_ID
 const CLIENT_SECRET = process.env.CLIENT_SECRET
