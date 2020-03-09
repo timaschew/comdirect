@@ -71,12 +71,12 @@ export DEBUG=1 # print all HTTP requests (url, status code, body)
 ### API
 
 ```js
-comdirect = require('comdirect')
+{start, createServer} = require('comdirect')
 highLevel = require('comdirect/high-level')
 lowLevel = require('comdirect/low-level')
 ```
 
-##### `comdirect(config = {autoRefresh: false, webhook: false, port: 8090})`
+##### `comdirect.start(config = {autoRefresh: false, webhook: false, port: 8090})`
 Function with an optional config object.  
 
 `autoRefresh`: update the refresh token every 19 minutes  
@@ -95,6 +95,13 @@ Returns a promise with the this object:
 }
 ```
 
+##### `comdirect.createServer(config = {autoRefresh: false, webhook: false}, callback)`
+
+Like `comdirect.start` but without starting the server. Instead the function returns a HTTP server
+on which you can attach your custom route handlers. You need to start the server manually via `server.listen`
+and handle non matching URLs. The callback is called when the authentication is done.  
+See the example below for more details. 
+
 ##### Other APIs
 
 Coming soon. Please check the source code.
@@ -111,7 +118,7 @@ const {getTransactions} = require('comdirect/low-level')
 const {refreshTokenFlowIfNeeded} = require('comdirect/high-level')
 
 ;(async function() {
-	const result = await server({autoRefresh: true, webhook: false})
+	const result = await comdirect.start({autoRefresh: true, webhook: false})
 	const {accountId} = result
 	let transactions = await getTransactions(accountId)
 	console.log(transactions.values[0]) // show latest transaction
@@ -131,4 +138,49 @@ Same as above, but just pass `webhook: true` instead.
 
 This is esefull when your deployment (and server start) is automated.  
 The login and TAN challenge is done via any browser.
+
+
+### Example (custom server)
+
+You can attach other route handler to the server:
+
+```js
+const comdirect = require('comdirect')
+const {getTransactions} = require('comdirect/low-level')
+const {refreshTokenFlowIfNeeded} = require('comdirect/high-level')
+
+let accountId = null
+
+async function transactionHandler(req, res) {
+  if (req.url === '/transactions') {
+    try {
+      await refreshTokenFlowIfNeeded()
+      const transactions = await getTransactions(accountId)
+      res.writeHead(200, {'Content-Type': 'application/json'})
+      res.end(JSON.stringify({payload: transactions}))
+    } catch (error) {
+      console.error(error)
+      res.writeHead(400, {'Content-Type': 'application/json'})
+      res.end('check server logs')
+    }
+  }
+}
+
+const PORT = process.env.port || 8088
+
+;(async function() {
+  const result = await new Promise((resolve, reject) => {
+    const server = comdirect.createServer({autoRefresh: true, webhook: true}, (error, data) => {
+      if (error) {
+        return reject(error)
+      }
+      resolve(data)
+    })
+    server.on('request', transactionHandler)
+    server.listen(PORT)
+    console.log('listen on', PORT)
+  })
+  accountId = result.accountId
+})()
+```
 
