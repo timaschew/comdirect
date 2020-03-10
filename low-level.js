@@ -209,7 +209,7 @@ async function getAccountBalances() {
 
 async function getAccountInfo(access_token) {
 	const body = await getAccountBalances(access_token)
-	return body.values[0].accountId
+	return body.values.map(a => a.accountId)
 }
 
 async function getTransactions(accountId) {

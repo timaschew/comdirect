@@ -91,7 +91,7 @@ Returns a promise with the this object:
   "sessionUUID": "CCC",
   "sessionId": "DDD",
   "requestId": "EEE",
-  "accountId": "FFF"
+  "accountId": ["FFF", "GGG"]
 }
 ```
 
