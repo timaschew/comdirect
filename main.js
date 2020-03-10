@@ -13,6 +13,8 @@ const MINUTES_19 = 1000 * 60 * 19
 const DEFAULT_PORT = 8089
 
 const reference = {}
+let needAuthentication = true
+
 function start(config = {autoRefresh: false, webhook: false, port: DEFAULT_PORT}) {
 	return new Promise(async function(mainResolve, mainReject) {
 		if (config.port == null) config.port = process.env.PORT || DEFAULT_PORT
@@ -107,7 +109,7 @@ function createServer(config = {autoRefresh: false, webhook: false}, callback) {
 	}
 
 	const server = http.createServer(async function(req, res) {
-		if (req.url === '/challenge') {
+		if (req.url === '/challenge' && needAuthentication) {
 			res.writeHead(200, {'Content-Type': 'text/html'})
 			let form = ''
 			if (config.webhook === true) {
@@ -117,14 +119,14 @@ function createServer(config = {autoRefresh: false, webhook: false}, callback) {
 				`<img src="data:image/png;base64,${reference.challenge}">${form}`
 			)
 			res.end(html)
-		} else if (req.url === '/') {
+		} else if (req.url === '/' && needAuthentication) {
 			res.writeHead(200, {'Content-Type': 'text/html'})
 			res.write(htmlTemplate('Login', `
 				<input placeholder="Username" type="number"><br>
 				<input placeholder="Password" type="password"><br>
 				<button onClick="login()">Login</button>`))
 			res.end()
-		} else if (req.url === '/login') {
+		} else if (req.url === '/login' && needAuthentication) {
 			let body = ''
 		    req.on('data', function(data) {
 		        body += data
@@ -144,6 +146,7 @@ function createServer(config = {autoRefresh: false, webhook: false}, callback) {
 				})
 				.then(data => {
 					console.log('authentication was successful')
+					needAuthentication = false
 					if (config.autoRefresh) {
 						setInterval(triggerTokenRefresh, MINUTES_19)
 					}
@@ -151,12 +154,11 @@ function createServer(config = {autoRefresh: false, webhook: false}, callback) {
 				})
 				.catch(callback)
 		    })
-		} else if (req.url.indexOf('/tan') === 0) {
+		} else if (req.url.indexOf('/tan') === 0  && needAuthentication) {
 			const [x, y, tan] = req.url.split('/')
 			res.writeHead(200, {'Content-Type': 'text/html'})
 			res.end(htmlTemplate('TAN', 'Please check the server log.'))
 			tanHandlerResolve(tan)
-			
 		} else {
 			// handle everything else but only if the invocation comes from start
 			if (config.port != null) {
