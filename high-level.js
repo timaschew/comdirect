@@ -60,6 +60,7 @@ async function loadUserData(reference, challengeUrl, username, password, tan) {
 	return data
 }
 
+// refresh access token if needed
 async function refreshTokenFlowIfNeeded() {
 	try {
 		await getAccountInfo()
@@ -136,6 +137,7 @@ async function runOAuthFlow(reference, challengeUrl, username, password, tan) {
 module.exports = {
 	loadUserData,
 	getValidCredentials,
+	refreshTokenFlow,
 	refreshTokenFlowIfNeeded,
 	load,
 	save

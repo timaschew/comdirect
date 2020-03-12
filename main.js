@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const http = require('http')
 
+const {refreshTokenFlow} = require('./low-level')
 const {
 	loadUserData,
 	refreshTokenFlowIfNeeded
@@ -172,9 +173,9 @@ function createServer(config = {autoRefresh: false, webhook: false}, callback) {
 }
 
 function triggerTokenRefresh() {
-	refreshTokenFlowIfNeeded()
+	refreshTokenFlow()
 	.then(status => {
-		console.log('token', status)
+		console.log('refresh token was updated')
 	}).catch(error => {
 		console.error(error)
 		console.log('Stopping server and application')
