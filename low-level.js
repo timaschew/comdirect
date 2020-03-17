@@ -212,17 +212,33 @@ async function getAccountInfo(access_token) {
 	return body.values.map(a => a.accountId)
 }
 
-async function getTransactions(accountId) {
+async function getTransactions(accountId, paging, minDate, maxDate) {
+	let searchParams = ''
+	const array = []
+	if (paging) {
+		array.push(['paging-first', paging])
+	}
+	if (minDate) {
+		array.push(['min-bookingDate', minDate])
+	}
+	if (maxDate) {
+		array.push(['max-bookingDate', maxDate])
+	}
+	if (paging > 0) {
+		array.push(['transactionState', 'BOOKED'])
+		const tmp = new URLSearchParams(array)
+		searchParams = '?' + tmp.toString()
+	}
 	const options = {
-	  responseType: 'json',
-	  method: 'GET',
-	  url: `api/banking/v1/accounts/${accountId}/transactions`,
-	  headers: {
-	    'Accept': 'application/json',
-	    'Authorization': 'AUTO-INJECT',
-		'x-http-request-info': 'AUTO-INJECTED',
-	    'Content-Type': 'application/json'
-	  }
+	    responseType: 'json',
+	    method: 'GET',
+	    url: `api/banking/v1/accounts/${accountId}/transactions` + searchParams,
+	    headers: {
+	        'Accept': 'application/json',
+	        'Authorization': 'AUTO-INJECT',
+	        'x-http-request-info': 'AUTO-INJECTED',
+	        'Content-Type': 'application/json'
+	    }
 	}
 	const response = await agent(options)
   	const values = response.body.values.map(v => {
