@@ -102,9 +102,26 @@ on which you can attach your custom route handlers. You need to start the server
 and handle non matching URLs. The callback is called when the authentication is done.  
 See the example below for more details. 
 
+##### `lowLevel.getAccountBalances()`
+
+Show balances of all your accounts.
+
+##### `lowLevel.getTransactions(accountId, offset, minDate, maxDate)`
+
+Only 20 transactions are shown in one response. Set `offset` to `20` to see the next entries.  
+Date format example: `2020-02-02`.
+
+##### `lowLevel.refreshTokenFlow()`
+
+Updates the refresh token.
+
+##### `highLevel.refreshTokenFlowIfNeeded()`
+
+Updates the access token if needed.
+
 ##### Other APIs
 
-Coming soon. Please check the source code.
+Please check the source code.
 
 
 ### Example (interactive CLI)
