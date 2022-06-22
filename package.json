@@ -15,6 +15,6 @@
   "author": "Anton Wilhelm",
   "license": "ISC",
   "dependencies": {
-    "got": "^10.5.7"
+    "got": "^11.8.5"
   }
 }
