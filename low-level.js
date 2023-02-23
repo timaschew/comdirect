@@ -113,6 +113,7 @@ async function validateSesssionTAN(sessionUUID) {
 	        'Accept': 'application/json',
 	        'Authorization': 'AUTO-INJECT',
 	        'x-http-request-info': 'AUTO-INJECTED',
+			'x-once-authentication-info': '{"typ":"P_TAN"}',
 	        'Content-Type': 'application/json'
 	    },
 	  	body: JSON.stringify({
@@ -154,7 +155,7 @@ async function oAuthSecondaryFlow() {
 	const options = {
 		responseType: 'json',
 	    'method': 'POST',
-	    'url': '/oauth/token',
+	    'url': 'oauth/token',
 	    'headers': {
 	        'Content-Type': 'application/x-www-form-urlencoded',
 	        'Accept': 'application/json'
